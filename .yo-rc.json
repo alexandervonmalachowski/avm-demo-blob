@@ -1,0 +1,24 @@
+{
+  "generator-creative-tech": {
+    "author": "alexandervonmalachowski",
+    "email": "alexander.vonmalachowski@gmail.com",
+    "url": "https://github.com/alexandervonmalachowski",
+    "repo": "git@github.com:alexandervonmalachowski/avm-demo-blob.git",
+    "features": [
+      "azure-github-blob"
+    ],
+    "name": "avm-demo-blob",
+    "feature": "azure",
+    "fileType": "bicep",
+    "accountName": "avmdemoblob",
+    "appRegistration": "ar-avm-demo",
+    "appRegistrationProd": "ar-avm-demo",
+    "subscription": "mr-creative-tech",
+    "subscriptionProd": "mr-creative-tech",
+    "resourceGroup": "rg-avmdemoblob",
+    "confirmSetup": true,
+    "withPostgre": "false",
+    "deployPrefix": "",
+    "templateType": "bicep"
+  }
+}

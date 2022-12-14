@@ -1,0 +1,106 @@
+name: Deploy FE
+
+on:
+  push:
+    branches:
+      - "main"
+      - "qa-fe"
+      - "prod-fe"
+
+  workflow_dispatch:
+    inputs:
+      deploymentTarget:
+        description: "The non-prod deployment environment to use. (prod won't work)"
+        required: true
+        default: unstable
+
+env:
+  CI: true
+  NODE_VERSION: 16.x
+  NEXT_TELEMETRY_DISABLED: 1
+  AZURE_SUBSCRIPTION: mr-creative-tech
+  AZURE_CLIENT_ID: clientId
+  AZURE_SUBSCRIPTION_PROD: mr-creative-tech
+  AZURE_CLIENT_ID_PROD: clientIdProd
+
+jobs:
+  Build-and-Deploy-FE:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Use Node.js ${{ env.NODE_VERSION }}
+        uses: actions/setup-node@v1
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: checkout
+        uses: actions/checkout@v2
+
+      - name: set yarn cache dir
+        run: echo CACHE_DIR=$(yarn config get cacheFolder) >> $GITHUB_ENV
+
+      - name: cache yarn cache dir
+        uses: actions/cache@v2
+        with:
+          path: ${{ env.CACHE_DIR }}
+          key: ${{ runner.os }}-yarn_cache-${{ hashFiles('**/yarn.lock') }}
+
+      - name: next cache # taken from https://nextjs.org/docs/messages/no-cache
+        uses: actions/cache@v2
+        with:
+          path: ${{ github.workspace }}/.next/cache
+          # Generate a new cache whenever packages or source files change.
+          key: ${{ runner.os }}-nextjs-${{ hashFiles('**/yarn.lock') }}-${{ hashFiles('**.[jt]s', '**.[jt]sx') }}
+          # If source files changed but packages didn't, rebuild from a prior cache.
+          restore-keys: |
+            ${{ runner.os }}-nextjs-${{ hashFiles('**/yarn.lock') }}-
+
+      - name: env
+        run: env
+      - name: pwd
+        run: pwd
+
+      - name: install
+        run: yarn install
+
+      - name: check
+        if: ${{ github.ref != 'refs/heads/prod-fe' }}
+        run: yarn run check
+
+      - name: login - non prod
+        if: ${{ github.ref != 'refs/heads/prod-fe' }}
+        uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: login - prod
+        if: ${{ github.ref == 'refs/heads/prod-fe' }}
+        uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS_PROD }}
+
+      - name: build project, without deployment, on open pr
+        if: ${{ startsWith(github.ref, 'refs/pull') }}
+        run: |
+          yarn static
+
+      - name: deployment script - dev
+        if: ${{ github.ref == 'refs/heads/main' }}
+        run: ./infrastructure/blob-deploy-ci.sh dev $AZURE_SUBSCRIPTION $AZURE_CLIENT_ID
+
+      - name: deployment script - qa
+        if: ${{ github.ref == 'refs/heads/qa-fe' }}
+        run: ./infrastructure/blob-deploy-ci.sh qa $AZURE_SUBSCRIPTION $AZURE_CLIENT_ID
+
+      - name: deployment script - prod
+        if: ${{ github.ref == 'refs/heads/prod-fe' }}
+        run: ./infrastructure/blob-deploy-ci.sh prod $AZURE_SUBSCRIPTION_PROD $AZURE_CLIENT_ID_PROD
+
+      - name: deployment script for manual trigger
+        if: ${{ github.event_name == 'workflow_dispatch' }}
+        run: ./infrastructure/blob-deploy-ci.sh ${{ github.event.inputs.deploymentTarget }} $AZURE_SUBSCRIPTION $AZURE_CLIENT_ID
+
+      - name: logout
+        if: always()
+        run: |
+          az logout
